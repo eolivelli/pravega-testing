@@ -1,0 +1,11 @@
+#surefire_0
+#Mon May 18 10:24:36 CEST 2020
+basedir=/Users/enrico.olivelli/dev/tmp/PravegaTest
+checkstyle.skip=true
+magnews.tests.waitforcondition.sleeptime=500
+test=PravegaIntegrationTest
+db.localhost=h2
+user.dir=/Users/enrico.olivelli/dev/tmp/PravegaTest
+herddb.planner.dumpqueryloglevel=INFO
+maven.ext.class.path=/Users/enrico.olivelli/dev/netbeans/java/maven-nblib/netbeans-eventspy.jar
+localRepository=/Users/enrico.olivelli/.m2/repository

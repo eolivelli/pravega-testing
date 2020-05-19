@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -23,7 +23,10 @@ import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -78,26 +81,40 @@ public class PravegaIntegrationTest {
                             .stream(Stream.of(SCOPE, STREAMNAME))
                             .build();
 
+                    List<CompletableFuture<Void>> futures = new ArrayList<>();
                     try (EventStreamWriter<byte[]> writer =
                             clientFactory.createEventWriter(STREAMNAME, new ByteArraySerializer(), EventWriterConfig.builder().build());) {
-                        writer.writeEvent("foo".getBytes("utf-8")).get();
+                        for (int i = 0; i < 100; i++) {
+                            CompletableFuture<Void> handle = writer.writeEvent("foo".getBytes("utf-8"));
+                            futures.add(handle);
+                        }
                     }
+
+                    CompletableFuture.allOf(futures.toArray(a->new CompletableFuture[a])).join();
 
                     try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, CONTROLLERURI)) {
                         readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
                     }
-                    try (EventStreamReader<byte[]> consumer = clientFactory.createReader("reader", readerGroup, new ByteArraySerializer(), ReaderConfig.builder().build());) {
-                        String res = null;
+                    try (EventStreamReader<byte[]> consumer = clientFactory.createReader("reader", readerGroup,
+                            new ByteArraySerializer(), ReaderConfig.builder().build());) {
+                        List<String> results = new ArrayList<>();
                         for (int i = 0; i < 100; i++) {
                             EventRead<byte[]> readNextEvent = consumer.readNextEvent(1000);
-                            if (readNextEvent != null) {
-                                res = new String(readNextEvent.getEvent(), "utf-8");
+                            System.out.println("RECEIVED "+readNextEvent);
+                            if (readNextEvent != null
+                                     && !readNextEvent.isCheckpoint()
+                                     && readNextEvent.getEvent() != null
+                                    ) {
+                                String event = new String(readNextEvent.getEvent(), "utf-8");
+                                assertEquals("foo", event);
+                                results.add(event);
+                            }
+                            if (results.size() == futures.size()) {
                                 break;
                             }
                         }
-                        assertNotNull(res);
-                        System.out.println("RESULT: " + res);
-                    }                    
+                        assertEquals(results.size(), futures.size());
+                    }
                 }
             }
         }
